@@ -5,13 +5,17 @@ description: Dump DEX files from a running Android app for unpacking/deobfuscati
 
 # rev-dex-dumper - Android DEX Dumper
 
+## Runtime preflight
+
+This workflow needs an authorized Android target, adb connectivity, and suitable process access. The bundled dumper is for the Android target, not the host: inspect its architecture before pushing it and never execute it as a host-side dependency check.
+
 Dump DEX files from a running Android application's memory using `panda-dex-dumper` via ADB.
 
 ---
 
 ## Tool Location
 
-The `panda-dex-dumper` binary is bundled in this skill's directory. It sits beside this SKILL.md file; your agent tells you where the skill directory is, so resolve it from there:
+The `panda-dex-dumper` binary is bundled in this skill's directory. Resolve its absolute path relative to this SKILL.md file:
 
 ```
 <skill-dir>/panda-dex-dumper

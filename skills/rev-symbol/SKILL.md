@@ -5,6 +5,10 @@ description: Restore function symbols by analyzing code patterns, strings, const
 
 # rev-symbol - Symbol Recovery
 
+## Runtime preflight
+
+The export workflow needs decompiled input, symbols/strings and cross-references, not necessarily a local IDA installation. Reuse a supplied export. Direct IDA/MCP access is optional and must be explicitly configured by the user; do not install or register it automatically.
+
 Analyze function code characteristics to recover/identify function symbols and names.
 
 ## Pre-check

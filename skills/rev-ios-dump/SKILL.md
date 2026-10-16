@@ -5,6 +5,10 @@ description: Dump decrypted iOS app binaries (砸壳) from jailbroken devices us
 
 # rev-ios-dump - iOS App Decryption (砸壳)
 
+## Runtime preflight
+
+This is a source-script workflow from `P4nda0s/frida-ios-dump`, not an instruction to install an unverified same-name PyPI package. Reuse a provisioned `frida-ios-dump` launcher if available and inspect its help first; use its own Python/Frida environment when checking target compatibility. For a new deployment use a dedicated virtual environment and the project-local Node dependencies, then explicitly compile the TypeScript agent. On Python 3, review legacy Python-2-only backports (`enum34` and `ipaddress`) rather than installing them blindly. Device-side Frida, SSH access and authorization are still required. On Linux, `llvm-otool -l` can inspect Mach-O encryption load commands in place of Apple `otool -l`. Do not reinstall, contact devices, or deploy a server as a preflight.
+
 Dump decrypted iOS application binaries from jailbroken devices for security analysis and reverse engineering.
 
 ---
