@@ -1,0 +1,38 @@
+name: sync upstream
+
+# Keeps this fork a drop-in replacement for the upstream skill repository.
+# The fork only carries portable fixes; when upstream moves a hunk the merge
+# fails and this run goes red instead of silently losing the fix.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge upstream into this fork
+        run: |
+          set -euo pipefail
+          git config user.name  "fork sync bot"
+          git config user.email "fork-sync@users.noreply.github.com"
+          git remote add upstream "https://github.com/P4nda0s/reverse-skills.git"
+          git fetch --no-tags upstream "main"
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "already up to date"
+            exit 0
+          fi
+          git merge --no-edit upstream/main
+          git push origin HEAD:"main"
