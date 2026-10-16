@@ -11,10 +11,10 @@ Dump DEX files from a running Android application's memory using `panda-dex-dump
 
 ## Tool Location
 
-The `panda-dex-dumper` binary is bundled in this skill's directory. Resolve its absolute path relative to this SKILL.md file:
+The `panda-dex-dumper` binary is bundled in this skill's directory. It sits beside this SKILL.md file; your agent tells you where the skill directory is, so resolve it from there:
 
 ```
-skills/rev-dex-dumper/panda-dex-dumper
+<skill-dir>/panda-dex-dumper
 ```
 
 ---
