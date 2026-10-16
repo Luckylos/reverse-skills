@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           git config user.name  "fork sync bot"
-          git config user.email "sync-bot@users.noreply.github.com"
+          git config user.email "luckylos-fork-sync-bot@users.noreply.github.com"
           git remote add upstream "https://github.com/P4nda0s/reverse-skills.git"
           git fetch --no-tags upstream "main"
           if git merge-base --is-ancestor upstream/main HEAD; then
