@@ -5,6 +5,10 @@ description: IDAPython and IDALib script reference for reverse engineering. Acti
 
 # rev-idapython - IDAPython / IDALib Script Reference
 
+## Runtime preflight
+
+Executing IDAPython requires an actual IDA installation; IDALib and Hex-Rays examples also require the corresponding installed components and valid licensing. A Python package or another decompiler is not a substitute for those APIs. Code generation/review does not require local IDA.
+
 IDAPython script snippets for IDA interactive use and IDALib headless analysis. Use as reference when generating IDAPython code.
 
 - **IDAPython**: scripts run inside IDA GUI (Script Command, plugin, or IDC console)

@@ -5,6 +5,10 @@ description: Debug and emulate specific code fragments or functions using the Un
 
 # rev-unicorn-debug - Unicorn Emulation Debugger
 
+## Runtime preflight
+
+Use a Python interpreter that can import `unicorn`; `capstone` and `keystone` are optional unless the script disassembles/assembles. Choose the existing dependency environment rather than assuming system `python3` has those packages. A host may provide `reverse-python` as that interpreter; verify imports before use. Do not install into system Python automatically.
+
 Debug and emulate specific code fragments or functions using the Unicorn engine. Analyze context dependencies (JNI, syscalls, library functions) and simulate them through hook mechanisms to complete the user's debugging goal.
 
 ---

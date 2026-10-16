@@ -5,6 +5,10 @@ description: Generate Frida hook scripts using modern Frida API. Activate when t
 
 # rev-frida - Frida Script Generator
 
+## Runtime preflight
+
+Check the installed Frida version and target-side backend before attaching. Reuse provisioned CLI tools; an available CLI does not prove a device, server, permissions, or compatible Java/ObjC bridge is present. Do not install, deploy, or connect automatically.
+
 Generate Frida instrumentation scripts for dynamic analysis, hooking, and runtime inspection.
 
 ## Overview

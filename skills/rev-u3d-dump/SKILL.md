@@ -5,6 +5,10 @@ description: Dump Unity IL2CPP symbols from iOS/Android builds. Extract method n
 
 # rev-u3d-dump - Unity IL2CPP Symbol Dumper
 
+## Runtime preflight
+
+Reuse a provisioned `il2cppdumper` or `cpp2il` launcher after checking its version/help; do not clone or reinstall it automatically. The v39 build below requires a .NET SDK and uses the `net8.0` target; Mono alone is not sufficient. Prefer a matching .NET 8 SDK/runtime over assuming major-version roll-forward guarantees compatibility. Tool startup is not proof that a particular metadata/binary pair is supported.
+
 Extract C# method names, addresses, and type definitions from Unity IL2CPP builds for IDA/Ghidra analysis.
 
 ---
@@ -92,7 +96,7 @@ git clone -b v39 https://github.com/roytu/Il2CppDumper.git
 
 # Build
 cd Il2CppDumper
-DOTNET_ROLL_FORWARD=LatestMajor dotnet build -c Release
+dotnet build -c Release -f net8.0
 
 # Run (use net8.0 framework)
 DOTNET_ROLL_FORWARD=LatestMajor dotnet run \
@@ -103,7 +107,7 @@ DOTNET_ROLL_FORWARD=LatestMajor dotnet run \
 
 **Notes:**
 - `DOTNET_ROLL_FORWARD=LatestMajor` allows running on .NET 9/10 even though the project targets .NET 6/8
-- Exit code 134 is normal in non-interactive mode (caused by `Console.ReadKey()` at the end)
+- For non-interactive use, set `RequireAnyKey` to `false` in the deployed config. Treat a nonzero exit as a failure requiring inspection; verify output files before claiming a successful dump.
 - On macOS, if the binary gets SIGKILL'd, ad-hoc sign it: `codesign -s - <binary>`
 
 ### Step 4: Verify Output
@@ -159,7 +163,7 @@ public void MethodName() { }
 |-------|-------|-----|
 | `not a supported version[39]` | Using original Il2CppDumper | Switch to roytu/Il2CppDumper v39 fork |
 | Exit code 137 (SIGKILL) | macOS unsigned binary | `codesign -s - <binary>` |
-| `Cannot read keys` (exit 134) | Non-interactive console | Ignore — dump completed successfully |
+| `Cannot read keys` (exit 134) | Non-interactive console | Disable `RequireAnyKey`, rerun, and validate outputs; do not ignore the exit status |
 | `DOTNET_ROLL_FORWARD` error | .NET version mismatch | Set `DOTNET_ROLL_FORWARD=LatestMajor` |
 | Empty output | Wrong binary/metadata pair | Verify both files are from the same build |
 

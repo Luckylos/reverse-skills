@@ -5,6 +5,10 @@ description: Reconstruct data structures by analyzing memory access patterns acr
 
 # rev-struct - Structure Recovery
 
+## Runtime preflight
+
+The export workflow needs decompiled input and its address/call metadata, not necessarily a local IDA installation. Reuse a supplied export. Direct IDA/MCP access is optional and must be explicitly configured by the user; do not install or register it automatically.
+
 Recover data structure definitions by analyzing memory access patterns in functions and their call chains.
 
 ## Pre-check
