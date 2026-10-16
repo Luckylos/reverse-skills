@@ -18,11 +18,24 @@
 | `rev-u3d-dump` | 从 Unity IL2CPP 构建中提取 C# 符号地址，生成 IDA/Ghidra 导入脚本 |
 | `rev-idapython` | IDAPython / IDALib 脚本参考，涵盖调试、内存操作、反编译、混淆辅助、批量分析等 |
 | `rev-ios-dump` | 使用 frida-ios-dump 对越狱设备上的 iOS 应用进行砸壳，导出解密后的 IPA 用于安全分析 |
+| `rev-lief` | 使用官方 LIEF Python SDK，只读导出 ELF/PE/Mach-O 的结构、依赖、导入/导出及多架构信息 |
+
+### 本 fork 的 LIEF 只读扩展
+
+`rev-lief` 可独立使用，不依赖 IDA-NO-MCP，也不是反编译器或二进制修改工具。需要已有、已验证可导入 `lief` 的 Python 环境；不会自动安装依赖、修改样本或连接第三方 MCP。
+
+在 magpie 的 App Library 中导入此子目录链接，选择 `rev-lief`：
+
+```text
+https://github.com/Luckylos/reverse-skills/tree/main/skills/rev-lief
+```
+
+新增技能需要单独安装，更新既有技能不会自动加入它。在 Pi 中可用 `/skill:rev-lief` 指定任务；运行前仍须批准目标、只读动作及新输出目录。包装脚本面向 POSIX，Linux 已实测；原生 Windows 不支持，macOS 尚未实测。详见[使用说明与边界](skills/rev-lief/references/usage.md)。
 
 ## 安装
 
 ```bash
-npx skills add P4nda0s/reverse-skills
+npx skills add Luckylos/reverse-skills
 ```
 
 ### 更新与卸载
