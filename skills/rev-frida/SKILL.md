@@ -7,7 +7,9 @@ description: Generate Frida hook scripts using modern Frida API. Activate when t
 
 ## Runtime preflight
 
-Check the installed Frida version and target-side backend before attaching. Reuse provisioned CLI tools; an available CLI does not prove a device, server, permissions, or compatible Java/ObjC bridge is present. Do not install, deploy, or connect automatically.
+Select an existing runtime before generating or running scripts; see [runtime selection and official evidence](references/runtime.md). Reuse provisioned CLI/SDK tools, keeping specialized environments (such as iOS dumping) separate. Check the host binding, target backend, OS/CPU/ABI, and bridge delivery explicitly. An available CLI proves none of these.
+
+Local version checks do not connect to devices. Device enumeration (including `frida-ps -U`), `adb` commands, attach, spawn, and script loading are target interactions requiring approval. Instrumentation changes target memory; it is **not read-only**. Do not install, download, launch a server, connect, elevate privileges, or change security settings automatically.
 
 Generate Frida instrumentation scripts for dynamic analysis, hooking, and runtime inspection.
 
@@ -23,18 +25,22 @@ Use Frida for:
 
 ## Important: Modern Frida CLI
 
-The modern Frida CLI does not use `--no-pause`. A spawned process resumes after the script is loaded.
+Use these only after approval for the selected target. The current REPL automatically resumes a spawned process after loading the script; `--pause` deliberately leaves it paused. Do not use the obsolete `--no-pause` flag.
 
 ```bash
-# Spawn and hook
+# Spawn an app (-f); -U selects a USB device
 frida -U -f com.example.app -l hook.js
 
-# Attach to running process
-frida -U com.example.app -l hook.js
-
-# Attach by PID
+# Attach by process name (-n), app identifier (-N), or PID (-p)
+frida -U -n ExampleProcess -l hook.js
+frida -U -N com.example.app -l hook.js
 frida -U -p 1234 -l hook.js
+
+# Deliberately pause the spawned app; resume with %resume when ready
+frida -U -f com.example.app -l hook.js --pause
 ```
+
+Detach releases instrumentation; it is not a resume or kill operation. Track whether you spawned/paused the target and explicitly decide its final state. Avoid eternalizing scripts; release listeners/observers and detach the session when finished.
 
 ## Modern API Reference
 
@@ -54,8 +60,14 @@ Process.enumerateModules();
 mod.enumerateExports();
 mod.enumerateImports();
 
-const addr = Module.getExportByName(null, "open");
+// Only when the owning module is unknown; global lookup can be costly.
+const addr = Module.findGlobalExportByName("open");
+if (addr === null) {
+    console.log("open export unavailable");
+}
 ```
+
+Known module preferred: use `Process.findModuleByName(name)` and check for `null`, then `mod.findExportByName(name)` and check for `null`. The `get` counterparts throw on absence. Use `mod.base` for a base address, not removed static Module methods. The following API fragments are independent; verify the actual signature and module on the selected platform.
 
 ### Interceptor
 
@@ -63,7 +75,11 @@ const addr = Module.getExportByName(null, "open");
 Interceptor.attach(ptr, {
     onEnter(args) {
         console.log("arg0:", args[0].toInt32());
-        console.log("arg1 str:", args[1].readUtf8String());
+        try {
+            console.log("arg1 str:", args[1].isNull() ? null : args[1].readUtf8String(128));
+        } catch (e) {
+            console.log("unreadable argument:", String(e));
+        }
     },
     onLeave(retval) {
         console.log("ret:", retval.toInt32());
@@ -79,8 +95,10 @@ Interceptor.replace(ptr, new NativeCallback(function (a0, a1) {
 ### NativeFunction & NativeCallback
 
 ```javascript
+// Android example: choose the actual libc module name for your target.
+const libc = Process.getModuleByName("libc.so");
 const open = new NativeFunction(
-    Module.getExportByName(null, "open"),
+    libc.getExportByName("open"),
     "int",
     ["pointer", "int"]
 );
@@ -95,9 +113,11 @@ const cb = new NativeCallback(function (arg) {
 
 ### Memory Operations
 
+Validate addresses, readable ranges, lengths, and the actual ABI first; catch read faults. Bound dumps/scans to the approved region and avoid logging secrets. Writes/replacements require explicit authorization; do not combine the attach and replace fragments indiscriminately. Keep listener handles for `detach()` and undo replacements with `Interceptor.revert(target)`.
+
 ```javascript
 ptr(addr).readByteArray(size);
-ptr(addr).readUtf8String();
+ptr(addr).readUtf8String(128);
 ptr(addr).readU32();
 ptr(addr).readPointer();
 
@@ -119,7 +139,7 @@ Memory.scan(mod.base, mod.size, "48 89 5C 24 ?? 48 89 6C", {
 ### ObjC
 
 ```javascript
-if (ObjC.available) {
+if (typeof ObjC !== "undefined" && ObjC.available) {
     const hook = ObjC.classes.ClassName["- methodName:"];
     Interceptor.attach(hook.implementation, {
         onEnter(args) {
@@ -135,7 +155,7 @@ if (ObjC.available) {
 ### Java
 
 ```javascript
-if (Java.available) {
+if (typeof Java !== "undefined" && Java.available) {
     Java.perform(function () {
         const Activity = Java.use("android.app.Activity");
         Activity.onCreate.implementation = function (bundle) {
@@ -145,6 +165,8 @@ if (Java.available) {
     });
 }
 ```
+
+Frida 17 bare GumJS does not include these bridges. The `typeof` guards prevent a missing-global error; they do **not** load a bridge. REPL/frida-trace bridge convenience differs from a Python `create_script()` agent. For custom agents use explicit imports and an approved compiler/dependency flow in [runtime.md](references/runtime.md). Class/method names remain target-specific; verify them before hooking.
 
 ## Script Generation Guidelines
 
@@ -159,105 +181,63 @@ When generating Frida scripts:
 
 ### Handle Native Module Load Timing
 
-Do not assume a target `.so` is already loaded.
+Use `Process.attachModuleObserver()` normally, not duplicate `dlopen` interceptors or unbounded polling. It immediately reports existing modules and synchronously reports newly loaded modules before the application uses them. This is **not a guarantee of pre-constructor timing**. Investigate initialization timing separately only when evidence requires it.
 
-Preferred order:
-1. Hook `android_dlopen_ext` or `dlopen` and install hooks when the target library loads.
-2. Use an immediate `Process.findModuleByName()` check for already-loaded modules.
-3. Use polling only as a fallback.
+### Native observer example
 
-Use this helper by default:
+Complete Linux example for an approved local target: observe the known libc module and hook the benign `getpid` export. Change only the module/export to ones verified for your target. An absent module leaves the observer waiting; an absent export reports the condition without attaching. Existing modules are handled by the same callback, without a separate racy lookup. Keep this heading stable: the regression test executes this exact block.
 
 ```javascript
-function hookModuleLoad(moduleName, callback) {
-    const dlopen = Module.findGlobalExportByName("android_dlopen_ext")
-        || Module.findGlobalExportByName("dlopen");
+const moduleName = "libc.so.6";
+const exportName = "getpid";
+let listener = null;
+let hookedBase = null;
 
-    if (!dlopen) {
-        throw new Error("dlopen/android_dlopen_ext not found");
+let observer = Process.attachModuleObserver({
+    onAdded(mod) {
+        if (mod.name !== moduleName || listener !== null) return;
+        try {
+            const address = mod.findExportByName(exportName);
+            if (address === null) {
+                send({ event: "missing-export", name: exportName });
+                return;
+            }
+            listener = Interceptor.attach(address, {
+                onEnter() {
+                    send({ event: "hook", name: exportName });
+                }
+            });
+            hookedBase = mod.base;
+        } catch (e) {
+            send({ event: "error", message: String(e) });
+        }
+    },
+    onRemoved(mod) {
+        if (hookedBase === null || !mod.base.equals(hookedBase)) return;
+        try {
+            if (listener !== null) listener.detach();
+        } catch (e) {
+            send({ event: "error", message: String(e) });
+        } finally {
+            listener = null;
+            hookedBase = null;
+        }
     }
+});
+send({ event: "ready", hooked: listener !== null });
 
-    const hooked = new Set();
-
-    Interceptor.attach(dlopen, {
-        onEnter(args) {
-            this.path = args[0].isNull() ? null : args[0].readCString();
-            this.shouldHook = this.path && this.path.indexOf(moduleName) !== -1;
-        },
-        onLeave(retval) {
-            if (!this.shouldHook || retval.isNull()) {
-                return;
-            }
-
-            const mod = Process.findModuleByName(moduleName);
-            if (!mod) {
-                return;
-            }
-
-            const key = mod.base.toString();
-            if (hooked.has(key)) {
-                return;
-            }
-            hooked.add(key);
-
-            callback(mod);
-        }
-    });
-}
-```
-
-Use it like this:
-
-```javascript
-hookModuleLoad("libtarget.so", function (mod) {
-    const target = mod.getExportByName("target_export");
-    Interceptor.attach(target, {
-        onEnter(args) {
-            console.log("target_export called");
-        }
-    });
+recv("stop", function () {
+    observer.detach();
+    observer = null;
+    if (listener !== null) listener.detach();
+    listener = null;
+    hookedBase = null;
+    Interceptor.flush();
+    send({ event: "stopped", observer: observer !== null, hooks: listener === null ? 0 : 1 });
 });
 ```
 
-If the target may already be loaded, combine an immediate check with the load hook:
-
-```javascript
-function hookNowOrOnLoad(moduleName, callback) {
-    const mod = Process.findModuleByName(moduleName);
-    if (mod) {
-        callback(mod);
-        return;
-    }
-    hookModuleLoad(moduleName, callback);
-}
-```
-
-Use polling only as a fallback:
-
-```javascript
-function hookWhenReady(moduleName, exportName, callbacks) {
-    const mod = Process.findModuleByName(moduleName);
-    if (mod) {
-        Interceptor.attach(mod.getExportByName(exportName), callbacks);
-        return;
-    }
-
-    const timer = setInterval(function () {
-        const loaded = Process.findModuleByName(moduleName);
-        if (!loaded) {
-            return;
-        }
-        clearInterval(timer);
-        Interceptor.attach(loaded.getExportByName(exportName), callbacks);
-    }, 100);
-}
-```
-
-Notes:
-- On Android, prefer `android_dlopen_ext` before `dlopen`.
-- Deduplicate by module base, not only by path.
-- `onLeave` of `dlopen/android_dlopen_ext` is usually the right time to install hooks after constructors have run.
-- If Java drives native loading, also consider `System.loadLibrary`, `Runtime.loadLibrary0`, `dlsym`, or `RegisterNatives`.
+The SDK host sends `script.post({"type": "stop"})` and waits for `stopped` before unloading the script and detaching the session. Do not ignore `error` messages: stop and diagnose, without changing security settings. Scope this one-module example to a single verified module; it does not manage multiple same-named copies. Removal clears the listener so a later reload can be hooked. Set a bounded host-side observation deadline; on timeout stop the observer/listener even if no module/export appeared. Script unload/session detach is final cleanup if explicit cleanup fails. No constructor or real-device coverage is implied.
 
 ### Do Not Blindly Hook init Series Functions
 
@@ -287,12 +267,7 @@ If proposing an early init hook, state:
 - what failure mode to expect
 - how to verify the hook did not break initialization
 
-Bad advice:
-
-```javascript
-// do not suggest this without a reason
-Interceptor.attach(Module.findBaseAddress("libtarget.so").add(0x1234), ...);
-```
+Bad advice: attach to an unverified `mod.base.add(offset)` merely because it resembles an initialization routine.
 
 Better advice:
 - wait for module load
